@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anchor-Based Generation Plan Logic</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232736;
+    --border: #2e3348;
+    --text: #e2e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #ff6b4a;
+    --accent2: #ffa94d;
+    --blue: #4dabf7;
+    --green: #51cf66;
+    --purple: #b197fc;
+    --pink: #f06595;
+    --cyan: #22b8cf;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 900;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 40px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Flow Section */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .step {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    transition: all 0.3s ease;
+  }
+
+  .step:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 30px rgba(255, 107, 74, 0.08);
+  }
+
+  .step-number {
+    position: absolute;
+    top: -14px;
+    left: 28px;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 4px 14px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+  }
+
+  .step-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    margin-top: 6px;
+  }
+
+  .step-desc {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+
+  .code-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-x: auto;
+  }
+
+  .code-block .comment { color: #5c6370; }
+  .code-block .var { color: var(--blue); }
+  .code-block .fn { color: var(--accent2); }
+  .code-block .num { color: var(--green); }
+  .code-block .op { color: var(--pink); }
+  .code-block .str { color: var(--purple); }
+  .code-block .keyword { color: var(--pink); }
+  .code-block .arrow { color: var(--accent); font-weight: 700; }
+
+  /* Connector */
+  .connector {
+    display: flex;
+    justify-content: center;
+    padding: 6px 0;
+  }
+
+  .connector svg {
+    width: 24px;
+    height: 32px;
+  }
+
+  .connector path {
+    stroke: var(--border);
+    stroke-width: 2;
+    fill: none;
+  }
+
+  .connector circle {
+    fill: var(--accent);
+  }
+
+  /* Example Box */
+  .example {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-top: 12px;
+    border-left: 3px solid var(--accent2);
+  }
+
+  .example-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .example-content {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.8;
+    color: var(--text);
+  }
+
+  /* Visual Bars */
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .bar-label {
+    font-size: 13px;
+    font-weight: 600;
+    width: 36px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 28px;
+    background: var(--bg);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    transition: width 1s ease;
+  }
+
+  .bar-fill.anchor { background: linear-gradient(90deg, #ff6b4a, #ff8a65); width: 100%; }
+  .bar-fill.sadness { background: linear-gradient(90deg, #4dabf7, #74c0fc); }
+  .bar-fill.anxiety { background: linear-gradient(90deg, #b197fc, #d0bfff); }
+  .bar-fill.hurt { background: linear-gradient(90deg, #f06595, #faa2c1); }
+  .bar-fill.embarrass { background: linear-gradient(90deg, #ffa94d, #ffd8a8); }
+  .bar-fill.joy { background: linear-gradient(90deg, #51cf66, #8ce99a); }
+
+  .bar-target {
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    border-right: 2px dashed var(--accent);
+    opacity: 0.6;
+  }
+
+  .bar-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    width: 60px;
+    flex-shrink: 0;
+  }
+
+  /* Title allocation visual */
+  .title-alloc {
+    display: flex;
+    height: 32px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 12px;
+    gap: 2px;
+  }
+
+  .title-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    border-radius: 4px;
+  }
+
+  /* Persona cycle */
+  .persona-cycle {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .persona-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid;
+  }
+
+  .p0 { background: rgba(255,107,74,0.12); border-color: rgba(255,107,74,0.3); color: var(--accent); }
+  .p1 { background: rgba(77,171,247,0.12); border-color: rgba(77,171,247,0.3); color: var(--blue); }
+  .p2 { background: rgba(177,151,252,0.12); border-color: rgba(177,151,252,0.3); color: var(--purple); }
+  .p3 { background: rgba(81,207,102,0.12); border-color: rgba(81,207,102,0.3); color: var(--green); }
+
+  .cycle-arrow {
+    display: flex;
+    align-items: center;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  /* Summary */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .summary-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+  }
+
+  .summary-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 26px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .summary-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .fn-ref {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--cyan);
+    background: rgba(34, 184, 207, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-top: 8px;
+  }
+
+  @media (max-width: 640px) {
+    .summary-grid { grid-template-columns: 1fr; }
+    .step { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Anchor-Based Generation Plan</h1>
+  <p class="subtitle">dataset.py → compute_final_generation_plan_anchor_to_anger()</p>
+
+  <div class="flow">
+
+    <!-- STEP 1 -->
+    <div class="step">
+      <div class="step-number">STEP 1</div>
+      <div class="step-title">전체 감정 분포 로드</div>
+      <div class="step-desc">HuggingFace에서 parquet 로드 → 감정별 Counter 생성</div>
+      <div class="code-block">
+        <span class="var">full_dist</span> = <span class="fn">get_full_label_distribution</span>()<br>
+        <span class="comment">// → {"분노": 1036, "슬픔": 103, "불안": 42, ...}</span>
+      </div>
+      <div class="bar-chart">
+        <div class="bar-row">
+          <span class="bar-label">분노</span>
+          <div class="bar-track"><div class="bar-fill anchor">1,036</div></div>
+          <span class="bar-count">65.7%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">당황</span>
+          <div class="bar-track"><div class="bar-fill embarrass" style="width:21.5%">223</div></div>
+          <span class="bar-count">14.1%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">기쁨</span>
+          <div class="bar-track"><div class="bar-fill joy" style="width:15.3%">159</div></div>
+          <span class="bar-count">10.1%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">슬픔</span>
+          <div class="bar-track"><div class="bar-fill sadness" style="width:9.9%">103</div></div>
+          <span class="bar-count">6.5%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">불안</span>
+          <div class="bar-track"><div class="bar-fill anxiety" style="width:4.1%">42</div></div>
+          <span class="bar-count">2.7%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">상처</span>
+          <div class="bar-track"><div class="bar-fill hurt" style="width:1.4%">15</div></div>
+          <span class="bar-count">1.0%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 24 32"><path d="M12 0 L12 24"/><circle cx="12" cy="28" r="3"/></svg></div>
+
+    <!-- STEP 2 -->
+    <div class="step">
+      <div class="step-number">STEP 2</div>
+      <div class="step-title">감정별 생성 필요량 계산</div>
+      <div class="step-desc">Anchor(분노)와의 차이 = 생성해야 할 댓글 수</div>
+      <div class="code-block">
+        <span class="var">anger_count</span> = <span class="num">1036</span><br><br>
+        <span class="keyword">for</span> <span class="var">emo</span> <span class="keyword">in</span> [<span class="str">"슬픔"</span>, <span class="str">"불안"</span>, <span class="str">"상처"</span>, <span class="str">"당황"</span>, <span class="str">"기쁨"</span>]:<br>
+        &nbsp;&nbsp;<span class="var">need</span> = <span class="fn">max</span>(<span class="num">0</span>, <span class="var">anger_count</span> <span class="op">-</span> <span class="var">current</span>)
+      </div>
+      <div class="example">
+        <div class="example-label">Example — 슬픔</div>
+        <div class="example-content">
+          need = max(0, <span style="color:var(--accent)">1036</span> - <span style="color:var(--blue)">103</span>) = <span style="color:var(--green)">933</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 24 32"><path d="M12 0 L12 24"/><circle cx="12" cy="28" r="3"/></svg></div>
+
+    <!-- STEP 3 -->
+    <div class="step">
+      <div class="step-number">STEP 3</div>
+      <div class="step-title">타이틀당 생성 수 배분</div>
+      <div class="step-desc">뉴스 타이틀 150개에 균등 분배 + 나머지 처리</div>
+      <div class="code-block">
+        <span class="var">per_title</span> &nbsp;= <span class="var">need</span> <span class="op">//</span> <span class="var">num_titles</span> &nbsp;&nbsp;<span class="comment">// floor division</span><br>
+        <span class="var">remainder</span> = <span class="var">need</span> <span class="op">%</span> &nbsp;<span class="var">num_titles</span> &nbsp;&nbsp;<span class="comment">// 앞에서부터 +1</span>
+      </div>
+      <div class="example">
+        <div class="example-label">Example — 슬픔 (need=933)</div>
+        <div class="example-content">
+          per_title &nbsp;= 933 // 150 = <span style="color:var(--green)">6</span><br>
+          remainder = 933 % &nbsp;150 = <span style="color:var(--accent2)">33</span><br><br>
+          <span style="color:var(--text-dim)">→ 타이틀 0~32 : 7개씩 생성 (33개)</span><br>
+          <span style="color:var(--text-dim)">→ 타이틀 33~149 : 6개씩 생성 (117개)</span><br>
+          <span style="color:var(--text-dim)">→ 합계: 33×7 + 117×6 = 231 + 702 = 933 ✓</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 24 32"><path d="M12 0 L12 24"/><circle cx="12" cy="28" r="3"/></svg></div>
+
+    <!-- STEP 4 -->
+    <div class="step">
+      <div class="step-number">STEP 4</div>
+      <div class="step-title">모델별 타이틀 블록 할당</div>
+      <div class="step-desc">agent.py에서 감정별 가중치로 타이틀 구간을 모델에 분배</div>
+      <div class="title-alloc">
+        <div class="title-seg" style="flex:0.35; background:linear-gradient(135deg, #ff6b4a, #ff8a65);">gpt4o 35%</div>
+        <div class="title-seg" style="flex:0.25; background:linear-gradient(135deg, #4dabf7, #74c0fc);">gemini 25%</div>
+        <div class="title-seg" style="flex:0.20; background:linear-gradient(135deg, #b197fc, #d0bfff);">mistral 20%</div>
+        <div class="title-seg" style="flex:0.15; background:linear-gradient(135deg, #ffa94d, #ffd8a8); color:#333;">llama 15%</div>
+        <div class="title-seg" style="flex:0.05; background:linear-gradient(135deg, #51cf66, #8ce99a); color:#333;">gem</div>
+      </div>
+      <div class="code-block" style="margin-top:12px;">
+        <span class="comment">// 150 titles × weight</span><br>
+        <span class="var">gpt4o</span> &nbsp;<span class="arrow">→</span> title[<span class="num">0</span>..<span class="num">52</span>] &nbsp;&nbsp;(53개)<br>
+        <span class="var">gemini</span> <span class="arrow">→</span> title[<span class="num">53</span>..<span class="num">89</span>] &nbsp;(37개)<br>
+        <span class="var">mistral</span><span class="arrow">→</span> title[<span class="num">90</span>..<span class="num">119</span>] (30개)<br>
+        <span class="var">llama</span> &nbsp;<span class="arrow">→</span> title[<span class="num">120</span>..<span class="num">141</span>](22개)<br>
+        <span class="var">gemma</span> &nbsp;<span class="arrow">→</span> title[<span class="num">142</span>..<span class="num">149</span>]( 8개)
+      </div>
+      <span class="fn-ref">📁 agent.py + augmentation_config.py</span>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 24 32"><path d="M12 0 L12 24"/><circle cx="12" cy="28" r="3"/></svg></div>
+
+    <!-- STEP 5 -->
+    <div class="step">
+      <div class="step-number">STEP 5</div>
+      <div class="step-title">API 호출 수 계산 + 페르소나 순환</div>
+      <div class="step-desc">타이틀당 호출 횟수 산정 & 4개 페르소나 round-robin</div>
+      <div class="code-block">
+        <span class="var">calls_per_title</span> = <span class="fn">ceil</span>(<span class="var">per_title</span> / <span class="var">comments_per_prompt</span>)<br>
+        <span class="comment">// ceil(6 / 5) = 2회 호출/타이틀</span>
+      </div>
+      <div class="persona-cycle">
+        <div class="persona-chip p0">👔 직장인</div>
+        <div class="cycle-arrow">→</div>
+        <div class="persona-chip p1">📚 대학생</div>
+        <div class="cycle-arrow">→</div>
+        <div class="persona-chip p2">🏠 주부</div>
+        <div class="cycle-arrow">→</div>
+        <div class="persona-chip p3">🧓 은퇴자</div>
+        <div class="cycle-arrow">→</div>
+        <div class="persona-chip p0">👔 직장인</div>
+        <div class="cycle-arrow">⟳</div>
+      </div>
+      <span class="fn-ref">📁 agent.py</span>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 24 32"><path d="M12 0 L12 24"/><circle cx="12" cy="28" r="3"/></svg></div>
+
+    <!-- RESULT -->
+    <div class="step" style="border-color: var(--accent); background: linear-gradient(135deg, rgba(255,107,74,0.05), rgba(255,169,77,0.05));">
+      <div class="step-number" style="background: linear-gradient(135deg, var(--accent), var(--accent2));">RESULT</div>
+      <div class="step-title">균등화 완료</div>
+      <div class="step-desc">6개 감정 모두 ~1,036개로 밸런싱</div>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-val">4,638</div>
+          <div class="summary-label">총 생성 댓글</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-val">6 × 1,036</div>
+          <div class="summary-label">최종 균등 분포</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-val">~6,216</div>
+          <div class="summary-label">전체 데이터셋</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- flow -->
+
+</div>
+</body>
+</html>
