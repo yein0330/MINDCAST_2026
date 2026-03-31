@@ -1,0 +1,7 @@
+# Large artifacts / outputs
+augmentation_checkpoints/
+experiments/results/
+results/
+data_augmentator/.env
+__pycache__/
+*.pyc
